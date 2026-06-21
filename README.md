@@ -17,9 +17,10 @@ no app to install, no account, no data ever leaves your phone.
 - 🖼️ Four scan looks: **Document**, **Grayscale**, **Black & white**, **Original**
 - 🔄 Rotate or 🗑️ delete any page (with confirmation)
 - 📑 Export all pages as one **A4 PDF** with margins
+- 🕘 **History** — saved PDFs are kept on the device so you can re-download them later, with a one-tap **Clear history**
 - 🌐 **Bilingual** — मराठी / English, switch any time
 - 🧭 Step-by-step guidance for non-technical users
-- 🔒 100% offline & private — everything happens on the device, nothing is uploaded
+- 🔒 Offline & private — everything happens on the device, nothing is ever uploaded
 
 ## 📱 How to use
 
@@ -53,5 +54,10 @@ python -m http.server 8000
 
 ## 🔐 Privacy
 
-No localStorage, no cookies, no network requests with your images.
-Photos are processed in memory and discarded when you close the page.
+- **Nothing is ever uploaded.** All image processing and PDF creation happen
+  locally in your browser — no server, no account, no network requests with your documents.
+- **History is stored on your own device only**, using the browser's IndexedDB,
+  so you can re-download a PDF you saved earlier. It never leaves the phone.
+- Because scans can be sensitive (IDs, bank papers), there is a **Clear history**
+  button (and per-file delete) to wipe stored PDFs whenever you want.
+- Want zero storage? Just clear the history after each use, or use a private/incognito tab.

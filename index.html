@@ -80,7 +80,9 @@
     display: flex; align-items: center; gap: 12px;
   }
   header .titles { flex: 1; min-width: 0; }
-  header h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
+  header h1 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header .toolbtn { position: relative; }
+  .badge { background: var(--accent); color: #fff; border-radius: 999px; font-size: 11px; font-weight: 800; padding: 1px 6px; line-height: 1.5; }
   header .toolbtn {
     appearance: none; border: 2px solid var(--line); background: var(--surface);
     color: var(--ink); border-radius: 12px;
@@ -183,6 +185,19 @@
   .help-step .n { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; }
   .help-step .t { font-size: 16px; font-weight: 600; }
   .sheet .close { width: 100%; margin-top: 8px; }
+
+  /* ---------- History list ---------- */
+  .hist-empty { text-align: center; color: var(--muted); padding: 28px 10px; font-size: 16px; }
+  .hist-item { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); }
+  .hist-item:first-child { border-top: none; }
+  .hist-info { flex: 1; min-width: 0; }
+  .hist-name { font-weight: 700; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hist-meta { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .hist-act { flex: none; appearance: none; border: none; background: var(--bg); color: var(--ink); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .hist-act:active { background: var(--line); }
+  .hist-act svg { width: 22px; height: 22px; }
+  .hist-act.del { color: var(--danger); }
+  .hist-clear { width: 100%; margin-top: 20px; background: #fff; color: var(--danger); border: 2px solid #f3c2c2; box-shadow: none; }
 </style>
 </head>
 <body>
@@ -206,9 +221,13 @@
   <div class="titles">
     <h1 data-i18n="appTitle">दस्तऐवज स्कॅनर</h1>
   </div>
+  <button class="toolbtn" id="histBtn" aria-label="History">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+    <span data-i18n="history">इतिहास</span>
+    <span class="badge hidden" id="histBadge">0</span>
+  </button>
   <button class="toolbtn" id="helpBtn" aria-label="Help">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-    <span data-i18n="help">मदत</span>
   </button>
   <button class="toolbtn" id="langBtn" aria-label="Language">अ/A</button>
 </header>
@@ -285,6 +304,16 @@
   </div>
 </div>
 
+<!-- History sheet -->
+<div class="sheet-back hidden" id="histSheet">
+  <div class="sheet">
+    <h2 data-i18n="histTitle">जतन केलेल्या फायली</h2>
+    <div id="histList"></div>
+    <button class="btn hist-clear hidden" id="histClearBtn" data-i18n="histClear">सर्व इतिहास हटवा</button>
+    <button class="btn primary close" id="histClose" data-i18n="gotIt">समजले</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -335,7 +364,18 @@
       saved: "PDF जतन झाले!",
       exportFail: "जतन करता आले नाही.",
       pdfMissing: "PDF साधन लोड झाले नाही — इंटरनेट तपासा.",
-      defaultName: "scan"
+      defaultName: "scan",
+      // history
+      history: "इतिहास",
+      histTitle: "जतन केलेल्या फायली",
+      histEmpty: "अजून काही जतन केलेले नाही.",
+      histPages: function (n) { return n + " पाने"; },
+      histDownload: "पुन्हा डाउनलोड करा",
+      histDelete: "हटवा",
+      histClear: "सर्व इतिहास हटवा",
+      histClearConfirm: "सर्व जतन केलेला इतिहास हटवायचा आहे का? ही क्रिया पूर्ववत होणार नाही.",
+      histDeleteConfirm: "ही फाईल इतिहासातून काढायची आहे का?",
+      histLocale: "mr-IN"
     },
     en: {
       appTitle: "Document Scanner",
@@ -375,7 +415,18 @@
       saved: "PDF saved!",
       exportFail: "Export failed.",
       pdfMissing: "PDF tool didn't load — check your connection.",
-      defaultName: "scan"
+      defaultName: "scan",
+      // history
+      history: "History",
+      histTitle: "Saved files",
+      histEmpty: "Nothing saved yet.",
+      histPages: function (n) { return n + (n === 1 ? " page" : " pages"); },
+      histDownload: "Download again",
+      histDelete: "Delete",
+      histClear: "Clear all history",
+      histClearConfirm: "Delete all saved history? This cannot be undone.",
+      histDeleteConfirm: "Remove this file from history?",
+      histLocale: "en-IN"
     }
   };
 
@@ -392,6 +443,7 @@
     langBtn.setAttribute("aria-label", lang === "mr" ? "Switch to English" : "मराठीत बदला");
     emptyText.textContent = t("emptyText");
     renderAll(); // refreshes guidance, labels, page a11y
+    refreshHistory(); // re-localize history list (dates, labels)
   }
 
   /* ================= state ================= */
@@ -685,7 +737,12 @@
     exportBtn.disabled = true;
     exportBtn.innerHTML = '<span class="spinner"></span>';
     setTimeout(function () {
-      try { buildPdf(); toast(t("saved")); }
+      try {
+        var result = buildPdf();
+        result.pdf.save(result.name);
+        toast(t("saved"));
+        saveToHistory(result);
+      }
       catch (err) { console.error(err); toast(t("exportFail")); }
       finally { exportBtn.disabled = false; exportBtn.innerHTML = original; }
     }, 40);
@@ -714,8 +771,165 @@
     var name = (document.getElementById("filename").value || t("defaultName")).trim() || t("defaultName");
     name = name.replace(/[\\/:*?"<>|]+/g, "_");
     if (!/\.pdf$/i.test(name)) name += ".pdf";
-    pdf.save(name);
+    return { pdf: pdf, name: name, pages: pages.length, look: currentFilter };
   }
+
+  /* ================= history (IndexedDB) ================= */
+  var DB_NAME = "paperScanDB";
+  var STORE = "scans";
+  var dbPromise = null;
+  var histSheet = document.getElementById("histSheet");
+  var histList = document.getElementById("histList");
+  var histClearBtn = document.getElementById("histClearBtn");
+  var histBadge = document.getElementById("histBadge");
+
+  function openDB() {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise(function (resolve, reject) {
+      if (!window.indexedDB) { reject(new Error("no-indexeddb")); return; }
+      var req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains(STORE)) {
+          db.createObjectStore(STORE, { keyPath: "id" });
+        }
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+    return dbPromise;
+  }
+
+  function dbTx(mode, fn) {
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(STORE, mode);
+        var store = tx.objectStore(STORE);
+        var out = fn(store);
+        tx.oncomplete = function () { resolve(out && out.result !== undefined ? out.result : out); };
+        tx.onerror = function () { reject(tx.error); };
+        tx.onabort = function () { reject(tx.error); };
+      });
+    });
+  }
+
+  function saveToHistory(result) {
+    try {
+      var blob = result.pdf.output("blob");
+      var record = {
+        id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+        name: result.name,
+        date: Date.now(),
+        pages: result.pages,
+        look: result.look,
+        blob: blob
+      };
+      dbTx("readwrite", function (store) { store.put(record); })
+        .then(refreshHistory)
+        .catch(function (e) { console.warn("history save failed", e); });
+    } catch (e) { console.warn("history save failed", e); }
+  }
+
+  function getAllScans() {
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(STORE, "readonly");
+        var req = tx.objectStore(STORE).getAll();
+        req.onsuccess = function () { resolve(req.result || []); };
+        req.onerror = function () { reject(req.error); };
+      });
+    });
+  }
+
+  function refreshHistory() {
+    return getAllScans().then(function (list) {
+      list.sort(function (a, b) { return b.date - a.date; });
+      // badge
+      if (list.length) {
+        histBadge.textContent = list.length;
+        histBadge.classList.remove("hidden");
+      } else {
+        histBadge.classList.add("hidden");
+      }
+      // list
+      histClearBtn.classList.toggle("hidden", list.length === 0);
+      histList.innerHTML = "";
+      if (!list.length) {
+        var empty = document.createElement("div");
+        empty.className = "hist-empty";
+        empty.textContent = t("histEmpty");
+        histList.appendChild(empty);
+        return;
+      }
+      var locale = t("histLocale");
+      list.forEach(function (rec) {
+        var item = document.createElement("div");
+        item.className = "hist-item";
+
+        var info = document.createElement("div");
+        info.className = "hist-info";
+        var nm = document.createElement("div");
+        nm.className = "hist-name";
+        nm.textContent = rec.name;
+        var meta = document.createElement("div");
+        meta.className = "hist-meta";
+        var when;
+        try { when = new Date(rec.date).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }); }
+        catch (e) { when = new Date(rec.date).toLocaleString(); }
+        meta.textContent = when + " · " + t("histPages")(rec.pages);
+        info.appendChild(nm);
+        info.appendChild(meta);
+
+        var dl = document.createElement("button");
+        dl.className = "hist-act";
+        dl.setAttribute("aria-label", t("histDownload"));
+        dl.title = t("histDownload");
+        dl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+        dl.addEventListener("click", function () { downloadScan(rec); });
+
+        var del = document.createElement("button");
+        del.className = "hist-act del";
+        del.setAttribute("aria-label", t("histDelete"));
+        del.title = t("histDelete");
+        del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+        del.addEventListener("click", function () { deleteScan(rec.id); });
+
+        item.appendChild(info);
+        item.appendChild(dl);
+        item.appendChild(del);
+        histList.appendChild(item);
+      });
+    }).catch(function (e) { console.warn("history read failed", e); });
+  }
+
+  function downloadScan(rec) {
+    var url = URL.createObjectURL(rec.blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = rec.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function deleteScan(id) {
+    if (!confirm(t("histDeleteConfirm"))) return;
+    dbTx("readwrite", function (store) { store.delete(id); }).then(refreshHistory);
+  }
+
+  function clearHistory() {
+    if (!confirm(t("histClearConfirm"))) return;
+    dbTx("readwrite", function (store) { store.clear(); }).then(refreshHistory);
+  }
+
+  document.getElementById("histBtn").addEventListener("click", function () {
+    refreshHistory();
+    histSheet.classList.remove("hidden");
+  });
+  document.getElementById("histClose").addEventListener("click", function () { histSheet.classList.add("hidden"); });
+  histSheet.addEventListener("click", function (e) { if (e.target === histSheet) histSheet.classList.add("hidden"); });
+  histClearBtn.addEventListener("click", clearHistory);
 
   // initial paint (welcome covers it until a language is chosen)
   applyLang();
