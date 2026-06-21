@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#1f6feb">
 <title>दस्तऐवज स्कॅनर · Document Scanner</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   :root {
     --bg: #f3f4f6;
@@ -117,7 +118,11 @@
   .guide .gsub { font-size: 14px; font-weight: 500; color: var(--muted); margin-top: 2px; }
 
   /* ---------- Capture buttons ---------- */
-  .capture-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 26px; }
+  .capture-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .pdf-btn { width: 100%; flex-direction: row; min-height: 68px; gap: 12px; margin-bottom: 26px; text-align: left; }
+  .pdf-btn span { display: block; }
+  .pdf-btn .pdf-main { font-size: 17px; font-weight: 700; }
+  .pdf-btn .pdf-sub { font-size: 12px; font-weight: 600; color: var(--muted); margin-top: 1px; }
   .btn {
     appearance: none; border: none; border-radius: var(--radius);
     font-size: 17px; font-weight: 700; padding: 20px 14px; cursor: pointer;
@@ -255,8 +260,16 @@
       <span class="label2" data-i18n="chooseSub">गॅलरीतून</span>
     </button>
   </div>
+  <button class="btn pdf-btn" id="pdfBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>
+    <span>
+      <span class="pdf-main" data-i18n="pdf">PDF निवडा</span>
+      <span class="pdf-sub" data-i18n="pdfSub">PDF चे स्कॅन बनवा</span>
+    </span>
+  </button>
   <input type="file" id="takeInput" accept="image/*" capture="environment">
   <input type="file" id="chooseInput" accept="image/*" multiple>
+  <input type="file" id="pdfInput" accept="application/pdf,.pdf" multiple>
 
   <!-- Look -->
   <p class="section-label" data-i18n="look">रंगरूप</p>
@@ -329,6 +342,8 @@
       takeSub: "कॅमेरा वापरा",
       choose: "फोटो निवडा",
       chooseSub: "गॅलरीतून",
+      pdf: "PDF निवडा",
+      pdfSub: "अगोदरचे PDF स्कॅनसारखे बनवा",
       look: "रंगरूप",
       fDocument: "कागदपत्र",
       fGray: "करडा",
@@ -360,6 +375,8 @@
       loadingOne: "फोटो लोड होत आहे…",
       loadingMany: function (n) { return n + " फोटो लोड होत आहेत…"; },
       loadFail: "फोटो लोड करता आला नाही.",
+      loadingPdf: "PDF वाचत आहे…",
+      pdfFail: "PDF वाचता आला नाही.",
       confirmDelete: "हे पान काढून टाकायचे आहे का?",
       saved: "PDF जतन झाले!",
       exportFail: "जतन करता आले नाही.",
@@ -384,6 +401,8 @@
       takeSub: "Use camera",
       choose: "Choose photos",
       chooseSub: "From gallery",
+      pdf: "Choose PDF",
+      pdfSub: "Turn an existing PDF into a scan",
       look: "Look",
       fDocument: "Document",
       fGray: "Grayscale",
@@ -411,6 +430,8 @@
       loadingOne: "Loading photo…",
       loadingMany: function (n) { return "Loading " + n + " photos…"; },
       loadFail: "Couldn't load the photo.",
+      loadingPdf: "Reading PDF…",
+      pdfFail: "Couldn't read the PDF.",
       confirmDelete: "Delete this page?",
       saved: "PDF saved!",
       exportFail: "Export failed.",
@@ -452,6 +473,11 @@
   var seq = 0;
   var currentFilter = "document";
 
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+
   var welcome = document.getElementById("welcome");
   var takeInput = document.getElementById("takeInput");
   var chooseInput = document.getElementById("chooseInput");
@@ -492,6 +518,10 @@
   document.getElementById("chooseBtn").addEventListener("click", function () { chooseInput.click(); });
   takeInput.addEventListener("change", onFiles);
   chooseInput.addEventListener("change", onFiles);
+
+  var pdfInput = document.getElementById("pdfInput");
+  document.getElementById("pdfBtn").addEventListener("click", function () { pdfInput.click(); });
+  pdfInput.addEventListener("change", onPdfFiles);
 
   document.getElementById("filterRow").addEventListener("click", function (e) {
     var chip = e.target.closest(".chip");
@@ -538,6 +568,55 @@
       .then(function (bmp) {
         pages.push({ id: ++seq, bitmap: downscale(bmp), rotation: 0 });
       });
+  }
+
+  // ---- Convert an existing PDF into scannable pages ----
+  function onPdfFiles(e) {
+    var files = Array.prototype.slice.call(e.target.files || []);
+    e.target.value = "";
+    var pdfs = files.filter(function (f) {
+      return f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+    });
+    if (!pdfs.length) return;
+    if (!window.pdfjsLib) { toast(t("pdfMissing")); return; }
+    toast(t("loadingPdf"));
+    var chain = Promise.resolve();
+    pdfs.forEach(function (file) { chain = chain.then(function () { return loadPdf(file); }); });
+    chain.then(function () { renderAll(); }).catch(function (err) {
+      console.error(err);
+      toast(t("pdfFail"));
+    });
+  }
+
+  function loadPdf(file) {
+    return file.arrayBuffer().then(function (buf) {
+      return pdfjsLib.getDocument({ data: buf }).promise;
+    }).then(function (doc) {
+      var n = doc.numPages;
+      var seqp = Promise.resolve();
+      function renderOne(idx) {
+        return doc.getPage(idx).then(function (page) {
+          var vp1 = page.getViewport({ scale: 1 });
+          var longest = Math.max(vp1.width, vp1.height);
+          var scale = longest > 0 ? Math.min(MAX_SIDE / longest, 3) : 1;
+          if (!isFinite(scale) || scale <= 0) scale = 1;
+          var vp = page.getViewport({ scale: scale });
+          var c = document.createElement("canvas");
+          c.width = Math.round(vp.width);
+          c.height = Math.round(vp.height);
+          var ctx = c.getContext("2d");
+          ctx.fillStyle = "#ffffff"; // flatten transparency to white paper
+          ctx.fillRect(0, 0, c.width, c.height);
+          return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function () {
+            pages.push({ id: ++seq, bitmap: c, rotation: 0 });
+          });
+        });
+      }
+      for (var i = 1; i <= n; i++) {
+        (function (idx) { seqp = seqp.then(function () { return renderOne(idx); }); })(i);
+      }
+      return seqp.then(function () { return doc.destroy && doc.destroy(); });
+    });
   }
 
   function downscale(bmp) {

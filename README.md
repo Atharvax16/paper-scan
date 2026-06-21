@@ -14,6 +14,7 @@ no app to install, no account, no data ever leaves your phone.
 ## ✨ Features
 
 - 📷 **Take photo** with the camera, or **Choose photos** from the gallery (multiple at once)
+- 📄 **Choose PDF** — turn an existing/normal PDF into a scanned-looking one (each page is rasterized and filtered, no re-printing needed)
 - 🖼️ Four scan looks: **Document**, **Grayscale**, **Black & white**, **Original**
 - 🔄 Rotate or 🗑️ delete any page (with confirmation)
 - 📑 Export all pages as one **A4 PDF** with margins
@@ -35,6 +36,7 @@ no app to install, no account, no data ever leaves your phone.
 
 - A single self-contained `index.html` — no backend, no build step.
 - [jsPDF](https://github.com/parallax/jsPDF) (loaded from cdnjs) for PDF export.
+- [pdf.js](https://mozilla.github.io/pdf.js/) (loaded from cdnjs) to rasterize existing PDFs so they can be re-scanned.
 - Image handling via `createImageBitmap`, downscaling, and `<canvas>` filters.
 
 ## 🚀 Deploy (GitHub Pages)
