@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="mr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1f6feb">
+<title>दस्तऐवज स्कॅनर · Document Scanner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f3f4f6;
+    --surface: #ffffff;
+    --ink: #1f2937;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --accent: #1f6feb;
+    --accent-dark: #1858c4;
+    --accent-ink: #ffffff;
+    --good: #15803d;
+    --danger: #dc2626;
+    --radius: 18px;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 6px 20px rgba(0,0,0,.07);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Devanagari", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- Welcome / language screen ---------- */
+  #welcome {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(160deg, #1f6feb, #1858c4);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 32px 24px calc(32px + env(safe-area-inset-bottom));
+    z-index: 100;
+  }
+  #welcome .logo {
+    width: 88px; height: 88px;
+    background: rgba(255,255,255,.16);
+    border-radius: 26px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 22px;
+  }
+  #welcome .logo svg { width: 48px; height: 48px; }
+  #welcome h1 { font-size: 26px; margin: 0 0 6px; font-weight: 800; letter-spacing: -.01em; }
+  #welcome h2 { font-size: 19px; margin: 0 0 34px; font-weight: 600; opacity: .92; }
+  #welcome .pick { font-size: 15px; opacity: .85; margin-bottom: 16px; letter-spacing: .04em; text-transform: uppercase; font-weight: 700; }
+  .lang-grid { display: grid; gap: 14px; width: 100%; max-width: 360px; }
+  .lang-btn {
+    appearance: none; border: none; cursor: pointer;
+    background: #fff; color: var(--ink);
+    border-radius: var(--radius);
+    padding: 22px;
+    font-size: 22px; font-weight: 800;
+    box-shadow: var(--shadow);
+    transition: transform .08s ease;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .lang-btn span { font-size: 14px; font-weight: 600; color: var(--muted); }
+  .lang-btn:active { transform: scale(.97); }
+
+  /* ---------- Header ---------- */
+  header {
+    background: var(--surface);
+    padding: calc(14px + env(safe-area-inset-top)) 18px 14px;
+    border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; gap: 12px;
+  }
+  header .titles { flex: 1; min-width: 0; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
+  header .toolbtn {
+    appearance: none; border: 2px solid var(--line); background: var(--surface);
+    color: var(--ink); border-radius: 12px;
+    height: 46px; min-width: 46px; padding: 0 12px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  header .toolbtn:active { background: var(--bg); }
+
+  main { padding: 18px; max-width: 760px; margin: 0 auto 150px; }
+
+  /* ---------- Guidance banner ---------- */
+  .guide {
+    display: flex; align-items: center; gap: 14px;
+    background: #eaf2ff;
+    border: 1px solid #cfe0ff;
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 22px;
+  }
+  .guide.done { background: #e9f8ee; border-color: #c6ecd1; }
+  .guide .step-num {
+    flex: none;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 19px;
+  }
+  .guide.done .step-num { background: var(--good); }
+  .guide .gtext { font-size: 17px; font-weight: 700; }
+  .guide .gsub { font-size: 14px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+
+  /* ---------- Capture buttons ---------- */
+  .capture-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 26px; }
+  .btn {
+    appearance: none; border: none; border-radius: var(--radius);
+    font-size: 17px; font-weight: 700; padding: 20px 14px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    min-height: 96px; transition: transform .08s ease, background .15s ease;
+    background: var(--surface); color: var(--ink); box-shadow: var(--shadow);
+    text-align: center;
+  }
+  .btn .label2 { font-size: 12px; font-weight: 600; opacity: .7; }
+  .btn:active { transform: scale(.97); }
+  .btn svg { width: 34px; height: 34px; flex: none; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .btn.primary .label2 { opacity: .85; }
+  .btn[disabled] { opacity: .45; cursor: default; }
+  input[type="file"] { display: none; }
+
+  .section-label { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; }
+
+  /* ---------- Filter chips ---------- */
+  .filter-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 26px; -webkit-overflow-scrolling: touch; }
+  .chip {
+    appearance: none; border: 2px solid var(--line); background: var(--surface); color: var(--ink);
+    border-radius: 999px; padding: 12px 18px; font-size: 15px; font-weight: 700;
+    white-space: nowrap; cursor: pointer; min-height: 50px;
+  }
+  .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+
+  /* ---------- Empty + pages ---------- */
+  .empty { text-align: center; color: var(--muted); padding: 46px 20px; background: var(--surface); border-radius: var(--radius); border: 2px dashed var(--line); }
+  .empty svg { width: 54px; height: 54px; opacity: .35; margin-bottom: 12px; }
+
+  .pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
+  .page-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; }
+  .thumb-wrap { position: relative; background: #e9ecf1; aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .thumb-wrap img { max-width: 100%; max-height: 100%; display: block; object-fit: contain; }
+  .page-num { position: absolute; top: 8px; left: 8px; background: rgba(31,41,55,.8); color: #fff; font-size: 12px; font-weight: 800; padding: 4px 9px; border-radius: 999px; }
+  .page-actions { display: flex; border-top: 1px solid var(--line); }
+  .icon-btn { flex: 1; appearance: none; border: none; background: var(--surface); color: var(--ink); padding: 15px 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; min-height: 56px; }
+  .icon-btn svg { width: 24px; height: 24px; }
+  .icon-btn + .icon-btn { border-left: 1px solid var(--line); }
+  .icon-btn.del { color: var(--danger); }
+  .icon-btn:active { background: var(--bg); }
+
+  /* ---------- Export bar ---------- */
+  .export-bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); box-shadow: 0 -2px 16px rgba(0,0,0,.06); z-index: 20; }
+  .export-inner { max-width: 760px; margin: 0 auto; }
+  .fname-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .fname-row label { font-size: 14px; font-weight: 700; color: var(--muted); flex: none; }
+  .fname { flex: 1; border: 2px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 16px; color: var(--ink); background: var(--surface); min-width: 0; }
+  .fname:focus { outline: none; border-color: var(--accent); }
+  .export-btn { width: 100%; min-height: 60px; font-size: 19px; flex-direction: row; gap: 10px; }
+  .export-btn svg { width: 26px; height: 26px; }
+
+  /* ---------- Toast + help ---------- */
+  .toast { position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%) translateY(20px); background: var(--ink); color: #fff; padding: 13px 22px; border-radius: 999px; font-size: 15px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease; z-index: 50; box-shadow: var(--shadow); max-width: 90%; text-align: center; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .spinner { width: 22px; height: 22px; border: 3px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- Help sheet ---------- */
+  .sheet-back { position: fixed; inset: 0; background: rgba(17,24,39,.5); z-index: 90; display: flex; align-items: flex-end; }
+  .sheet { background: var(--surface); width: 100%; max-width: 760px; margin: 0 auto; border-radius: 22px 22px 0 0; padding: 24px 22px calc(24px + env(safe-area-inset-bottom)); max-height: 86vh; overflow-y: auto; }
+  .sheet h2 { margin: 0 0 18px; font-size: 21px; font-weight: 800; }
+  .help-step { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 18px; }
+  .help-step .n { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .help-step .t { font-size: 16px; font-weight: 600; }
+  .sheet .close { width: 100%; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<!-- ===== Welcome / language picker ===== -->
+<div id="welcome">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+  </div>
+  <h1>दस्तऐवज स्कॅनर</h1>
+  <h2>Document Scanner</h2>
+  <div class="pick">भाषा निवडा · Choose language</div>
+  <div class="lang-grid">
+    <button class="lang-btn" data-lang="mr">मराठी<span>Marathi</span></button>
+    <button class="lang-btn" data-lang="en">English<span>इंग्रजी</span></button>
+  </div>
+</div>
+
+<!-- ===== App ===== -->
+<header>
+  <div class="titles">
+    <h1 data-i18n="appTitle">दस्तऐवज स्कॅनर</h1>
+  </div>
+  <button class="toolbtn" id="helpBtn" aria-label="Help">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <span data-i18n="help">मदत</span>
+  </button>
+  <button class="toolbtn" id="langBtn" aria-label="Language">अ/A</button>
+</header>
+
+<main>
+  <!-- Guidance banner -->
+  <div class="guide" id="guide">
+    <div class="step-num" id="guideNum">1</div>
+    <div>
+      <div class="gtext" id="guideText"></div>
+      <div class="gsub" id="guideSub"></div>
+    </div>
+  </div>
+
+  <!-- Capture -->
+  <div class="capture-row">
+    <button class="btn primary" id="takeBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <span data-i18n="take">फोटो काढा</span>
+      <span class="label2" data-i18n="takeSub">कॅमेरा वापरा</span>
+    </button>
+    <button class="btn" id="chooseBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      <span data-i18n="choose">फोटो निवडा</span>
+      <span class="label2" data-i18n="chooseSub">गॅलरीतून</span>
+    </button>
+  </div>
+  <input type="file" id="takeInput" accept="image/*" capture="environment">
+  <input type="file" id="chooseInput" accept="image/*" multiple>
+
+  <!-- Look -->
+  <p class="section-label" data-i18n="look">रंगरूप</p>
+  <div class="filter-row" id="filterRow">
+    <button class="chip" data-filter="document" aria-pressed="true" data-i18n="fDocument">कागदपत्र</button>
+    <button class="chip" data-filter="grayscale" aria-pressed="false" data-i18n="fGray">करडा</button>
+    <button class="chip" data-filter="bw" aria-pressed="false" data-i18n="fBw">काळा-पांढरा</button>
+    <button class="chip" data-filter="original" aria-pressed="false" data-i18n="fOriginal">मूळ फोटो</button>
+  </div>
+
+  <!-- Pages -->
+  <p class="section-label" id="pagesLabel"></p>
+  <div id="pagesHost">
+    <div class="empty" id="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      <div id="emptyText"></div>
+    </div>
+    <div class="pages" id="pages" hidden></div>
+  </div>
+</main>
+
+<!-- Export bar -->
+<div class="export-bar">
+  <div class="export-inner">
+    <div class="fname-row">
+      <label for="filename" data-i18n="fileName">नाव</label>
+      <input class="fname" id="filename" type="text" value="scan" autocomplete="off" spellcheck="false">
+    </div>
+    <button class="btn primary export-btn" id="exportBtn" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span data-i18n="save">PDF जतन करा</span>
+    </button>
+  </div>
+</div>
+
+<!-- Help sheet -->
+<div class="sheet-back hidden" id="helpSheet">
+  <div class="sheet">
+    <h2 data-i18n="howTitle">कसे वापरावे?</h2>
+    <div class="help-step"><div class="n">1</div><div class="t" data-i18n="how1"></div></div>
+    <div class="help-step"><div class="n">2</div><div class="t" data-i18n="how2"></div></div>
+    <div class="help-step"><div class="n">3</div><div class="t" data-i18n="how3"></div></div>
+    <div class="help-step"><div class="n">4</div><div class="t" data-i18n="how4"></div></div>
+    <button class="btn primary close" id="helpClose" data-i18n="gotIt">समजले</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ================= i18n ================= */
+  var I18N = {
+    mr: {
+      appTitle: "दस्तऐवज स्कॅनर",
+      help: "मदत",
+      take: "फोटो काढा",
+      takeSub: "कॅमेरा वापरा",
+      choose: "फोटो निवडा",
+      chooseSub: "गॅलरीतून",
+      look: "रंगरूप",
+      fDocument: "कागदपत्र",
+      fGray: "करडा",
+      fBw: "काळा-पांढरा",
+      fOriginal: "मूळ फोटो",
+      fileName: "नाव",
+      save: "PDF जतन करा",
+      howTitle: "कसे वापरावे?",
+      how1: "‘फोटो काढा’ दाबा आणि कागदाचा फोटो घ्या.",
+      how2: "हवे तेवढे फोटो काढा — प्रत्येक फोटो म्हणजे एक पान.",
+      how3: "गरज असल्यास पान फिरवा किंवा काढून टाका.",
+      how4: "शेवटी ‘PDF जतन करा’ दाबा. फाईल तयार!",
+      gotIt: "समजले",
+      // guidance
+      guideStartText: "पहिले पाऊल: फोटो काढा",
+      guideStartSub: "‘फोटो काढा’ दाबा आणि कागद कॅमेऱ्यासमोर धरा",
+      guideDoneText: "तयार! आता PDF जतन करा",
+      guideDoneSub: "खाली ‘PDF जतन करा’ हे निळे बटण दाबा",
+      // pages
+      pagesNone: "पाने",
+      pagesCount: function (n) { return "पाने (" + n + ")"; },
+      emptyText: "अजून एकही पान नाही.\nसुरू करण्यासाठी फोटो काढा किंवा निवडा.",
+      // a11y
+      pageLabel: function (n) { return "पान " + n; },
+      rotateLeft: "डावीकडे फिरवा",
+      rotateRight: "उजवीकडे फिरवा",
+      deletePage: "पान काढून टाका",
+      // toasts / confirm
+      loadingOne: "फोटो लोड होत आहे…",
+      loadingMany: function (n) { return n + " फोटो लोड होत आहेत…"; },
+      loadFail: "फोटो लोड करता आला नाही.",
+      confirmDelete: "हे पान काढून टाकायचे आहे का?",
+      saved: "PDF जतन झाले!",
+      exportFail: "जतन करता आले नाही.",
+      pdfMissing: "PDF साधन लोड झाले नाही — इंटरनेट तपासा.",
+      defaultName: "scan"
+    },
+    en: {
+      appTitle: "Document Scanner",
+      help: "Help",
+      take: "Take photo",
+      takeSub: "Use camera",
+      choose: "Choose photos",
+      chooseSub: "From gallery",
+      look: "Look",
+      fDocument: "Document",
+      fGray: "Grayscale",
+      fBw: "Black & white",
+      fOriginal: "Original",
+      fileName: "Name",
+      save: "Save PDF",
+      howTitle: "How to use",
+      how1: "Press ‘Take photo’ and snap a photo of the paper.",
+      how2: "Take as many photos as you like — each one becomes a page.",
+      how3: "Rotate or delete a page if you need to.",
+      how4: "Finally press ‘Save PDF’. Your file is ready!",
+      gotIt: "Got it",
+      guideStartText: "Step 1: Take a photo",
+      guideStartSub: "Press ‘Take photo’ and hold the paper in front of the camera",
+      guideDoneText: "Ready! Now save your PDF",
+      guideDoneSub: "Press the blue ‘Save PDF’ button below",
+      pagesNone: "Pages",
+      pagesCount: function (n) { return "Pages (" + n + ")"; },
+      emptyText: "No pages yet.\nTake or choose a photo to begin.",
+      pageLabel: function (n) { return "Page " + n; },
+      rotateLeft: "Rotate left",
+      rotateRight: "Rotate right",
+      deletePage: "Delete page",
+      loadingOne: "Loading photo…",
+      loadingMany: function (n) { return "Loading " + n + " photos…"; },
+      loadFail: "Couldn't load the photo.",
+      confirmDelete: "Delete this page?",
+      saved: "PDF saved!",
+      exportFail: "Export failed.",
+      pdfMissing: "PDF tool didn't load — check your connection.",
+      defaultName: "scan"
+    }
+  };
+
+  var lang = "mr";
+  function t(key) { return I18N[lang][key]; }
+
+  function applyLang() {
+    document.documentElement.lang = lang;
+    document.querySelectorAll("[data-i18n]").forEach(function (el) {
+      var v = I18N[lang][el.getAttribute("data-i18n")];
+      if (typeof v === "string") el.textContent = v;
+    });
+    langBtn.textContent = (lang === "mr") ? "A" : "अ";
+    langBtn.setAttribute("aria-label", lang === "mr" ? "Switch to English" : "मराठीत बदला");
+    emptyText.textContent = t("emptyText");
+    renderAll(); // refreshes guidance, labels, page a11y
+  }
+
+  /* ================= state ================= */
+  var MAX_SIDE = 1700;
+  var pages = [];
+  var seq = 0;
+  var currentFilter = "document";
+
+  var welcome = document.getElementById("welcome");
+  var takeInput = document.getElementById("takeInput");
+  var chooseInput = document.getElementById("chooseInput");
+  var pagesEl = document.getElementById("pages");
+  var emptyEl = document.getElementById("empty");
+  var emptyText = document.getElementById("emptyText");
+  var exportBtn = document.getElementById("exportBtn");
+  var pagesLabel = document.getElementById("pagesLabel");
+  var toastEl = document.getElementById("toast");
+  var langBtn = document.getElementById("langBtn");
+  var guide = document.getElementById("guide");
+  var guideNum = document.getElementById("guideNum");
+  var guideText = document.getElementById("guideText");
+  var guideSub = document.getElementById("guideSub");
+
+  /* ================= welcome ================= */
+  welcome.addEventListener("click", function (e) {
+    var b = e.target.closest(".lang-btn");
+    if (!b) return;
+    lang = b.getAttribute("data-lang");
+    applyLang();
+    welcome.classList.add("hidden");
+  });
+
+  langBtn.addEventListener("click", function () {
+    lang = (lang === "mr") ? "en" : "mr";
+    applyLang();
+  });
+
+  /* ================= help sheet ================= */
+  var helpSheet = document.getElementById("helpSheet");
+  document.getElementById("helpBtn").addEventListener("click", function () { helpSheet.classList.remove("hidden"); });
+  document.getElementById("helpClose").addEventListener("click", function () { helpSheet.classList.add("hidden"); });
+  helpSheet.addEventListener("click", function (e) { if (e.target === helpSheet) helpSheet.classList.add("hidden"); });
+
+  /* ================= capture ================= */
+  document.getElementById("takeBtn").addEventListener("click", function () { takeInput.click(); });
+  document.getElementById("chooseBtn").addEventListener("click", function () { chooseInput.click(); });
+  takeInput.addEventListener("change", onFiles);
+  chooseInput.addEventListener("change", onFiles);
+
+  document.getElementById("filterRow").addEventListener("click", function (e) {
+    var chip = e.target.closest(".chip");
+    if (!chip) return;
+    currentFilter = chip.getAttribute("data-filter");
+    this.querySelectorAll(".chip").forEach(function (c) {
+      c.setAttribute("aria-pressed", c === chip ? "true" : "false");
+    });
+    renderAll();
+  });
+
+  var toastTimer;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 2400);
+  }
+
+  function onFiles(e) {
+    var files = Array.prototype.slice.call(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    loadFiles(files);
+  }
+
+  function loadFiles(files) {
+    var imgs = files.filter(function (f) {
+      return /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i.test(f.name);
+    });
+    if (!imgs.length) return;
+    toast(imgs.length > 1 ? t("loadingMany")(imgs.length) : t("loadingOne"));
+    var chain = Promise.resolve();
+    imgs.forEach(function (file) { chain = chain.then(function () { return addImage(file); }); });
+    chain.then(function () { renderAll(); }).catch(function (err) {
+      console.error(err);
+      toast(t("loadFail"));
+    });
+  }
+
+  function addImage(file) {
+    return createImageBitmap(file, { imageOrientation: "from-image" })
+      .catch(function () { return createImageBitmap(file); })
+      .then(function (bmp) {
+        pages.push({ id: ++seq, bitmap: downscale(bmp), rotation: 0 });
+      });
+  }
+
+  function downscale(bmp) {
+    var w = bmp.width, h = bmp.height;
+    var longest = Math.max(w, h);
+    if (longest <= MAX_SIDE) return bmp;
+    var s = MAX_SIDE / longest;
+    var nw = Math.round(w * s), nh = Math.round(h * s);
+    var c = document.createElement("canvas");
+    c.width = nw; c.height = nh;
+    var ctx = c.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bmp, 0, 0, nw, nh);
+    if (bmp.close) bmp.close();
+    return c;
+  }
+
+  /* ================= filtering ================= */
+  function renderPageCanvas(page) {
+    var src = page.bitmap;
+    var sw = src.width, sh = src.height;
+    var rot = ((page.rotation % 360) + 360) % 360;
+
+    var c = document.createElement("canvas");
+    if (rot === 90 || rot === 270) { c.width = sh; c.height = sw; }
+    else { c.width = sw; c.height = sh; }
+    var ctx = c.getContext("2d");
+    ctx.save();
+    ctx.translate(c.width / 2, c.height / 2);
+    ctx.rotate(rot * Math.PI / 180);
+    ctx.drawImage(src, -sw / 2, -sh / 2);
+    ctx.restore();
+
+    if (currentFilter !== "original") applyFilter(ctx, c.width, c.height, currentFilter);
+    return c;
+  }
+
+  function applyFilter(ctx, w, h, filter) {
+    var img = ctx.getImageData(0, 0, w, h);
+    var d = img.data, i, lum;
+    if (filter === "document") {
+      var contrast = 1.5, brightness = 18;
+      var intercept = 128 * (1 - contrast) + brightness;
+      for (i = 0; i < d.length; i += 4) {
+        d[i]     = clamp(d[i]     * contrast + intercept);
+        d[i + 1] = clamp(d[i + 1] * contrast + intercept);
+        d[i + 2] = clamp(d[i + 2] * contrast + intercept);
+      }
+    } else if (filter === "grayscale") {
+      var gC = 1.45, gB = 16, gInt = 128 * (1 - gC) + gB;
+      for (i = 0; i < d.length; i += 4) {
+        lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        lum = clamp(lum * gC + gInt);
+        d[i] = d[i + 1] = d[i + 2] = lum;
+      }
+    } else if (filter === "bw") {
+      threshold(img, w, h);
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  function clamp(v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
+
+  function threshold(img, w, h) {
+    var d = img.data, n = w * h, gray = new Float32Array(n), i, p, x, y;
+    for (i = 0, p = 0; i < d.length; i += 4, p++) {
+      gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    }
+    var integral = new Float64Array((w + 1) * (h + 1));
+    for (y = 0; y < h; y++) {
+      var rowSum = 0;
+      for (x = 0; x < w; x++) {
+        rowSum += gray[y * w + x];
+        integral[(y + 1) * (w + 1) + (x + 1)] = integral[y * (w + 1) + (x + 1)] + rowSum;
+      }
+    }
+    var rad = Math.max(8, Math.round(Math.min(w, h) / 40));
+    var T = 0.85;
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < w; x++) {
+        var x0 = Math.max(0, x - rad), y0 = Math.max(0, y - rad);
+        var x1 = Math.min(w - 1, x + rad), y1 = Math.min(h - 1, y + rad);
+        var area = (x1 - x0 + 1) * (y1 - y0 + 1);
+        var sum = integral[(y1 + 1) * (w + 1) + (x1 + 1)]
+                - integral[y0 * (w + 1) + (x1 + 1)]
+                - integral[(y1 + 1) * (w + 1) + x0]
+                + integral[y0 * (w + 1) + x0];
+        var mean = sum / area;
+        var val = gray[y * w + x] < mean * T ? 0 : 255;
+        var idx = (y * w + x) * 4;
+        d[idx] = d[idx + 1] = d[idx + 2] = val;
+      }
+    }
+  }
+
+  /* ================= render ================= */
+  function renderAll() {
+    var has = pages.length > 0;
+    emptyEl.hidden = has;
+    pagesEl.hidden = !has;
+    exportBtn.disabled = !has;
+    pagesLabel.textContent = has ? t("pagesCount")(pages.length) : t("pagesNone");
+
+    // guidance banner
+    if (has) {
+      guide.classList.add("done");
+      guideNum.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><polyline points="20 6 9 17 4 12"/></svg>';
+      guideText.textContent = t("guideDoneText");
+      guideSub.textContent = t("guideDoneSub");
+    } else {
+      guide.classList.remove("done");
+      guideNum.textContent = "1";
+      guideText.textContent = t("guideStartText");
+      guideSub.textContent = t("guideStartSub");
+    }
+
+    pagesEl.innerHTML = "";
+    pages.forEach(function (page, idx) {
+      var card = document.createElement("div");
+      card.className = "page-card";
+
+      var wrap = document.createElement("div");
+      wrap.className = "thumb-wrap";
+
+      var canvas = renderPageCanvas(page);
+      var img = document.createElement("img");
+      img.alt = t("pageLabel")(idx + 1);
+      img.src = canvas.toDataURL("image/jpeg", 0.8);
+      page._canvas = canvas;
+      wrap.appendChild(img);
+
+      var num = document.createElement("div");
+      num.className = "page-num";
+      num.textContent = idx + 1;
+      wrap.appendChild(num);
+
+      var actions = document.createElement("div");
+      actions.className = "page-actions";
+
+      var rotL = iconButton('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>', t("rotateLeft"));
+      rotL.addEventListener("click", function () { rotate(page.id, -90); });
+
+      var rotR = iconButton('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/></svg>', t("rotateRight"));
+      rotR.addEventListener("click", function () { rotate(page.id, 90); });
+
+      var del = iconButton('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>', t("deletePage"));
+      del.classList.add("del");
+      del.addEventListener("click", function () { removePage(page.id); });
+
+      actions.appendChild(rotL);
+      actions.appendChild(rotR);
+      actions.appendChild(del);
+      card.appendChild(wrap);
+      card.appendChild(actions);
+      pagesEl.appendChild(card);
+    });
+  }
+
+  function iconButton(svg, label) {
+    var b = document.createElement("button");
+    b.className = "icon-btn";
+    b.type = "button";
+    b.innerHTML = svg;
+    b.setAttribute("aria-label", label);
+    b.title = label;
+    return b;
+  }
+
+  function rotate(id, delta) {
+    var p = findPage(id);
+    if (!p) return;
+    p.rotation = (((p.rotation + delta) % 360) + 360) % 360;
+    renderAll();
+  }
+
+  function removePage(id) {
+    if (!confirm(t("confirmDelete"))) return;
+    var p = findPage(id);
+    if (p && p.bitmap && p.bitmap.close) { try { p.bitmap.close(); } catch (e) {} }
+    pages = pages.filter(function (x) { return x.id !== id; });
+    renderAll();
+  }
+
+  function findPage(id) {
+    for (var i = 0; i < pages.length; i++) if (pages[i].id === id) return pages[i];
+    return null;
+  }
+
+  /* ================= export ================= */
+  exportBtn.addEventListener("click", exportPdf);
+
+  function exportPdf() {
+    if (!pages.length) return;
+    if (!window.jspdf || !window.jspdf.jsPDF) { toast(t("pdfMissing")); return; }
+    var original = exportBtn.innerHTML;
+    exportBtn.disabled = true;
+    exportBtn.innerHTML = '<span class="spinner"></span>';
+    setTimeout(function () {
+      try { buildPdf(); toast(t("saved")); }
+      catch (err) { console.error(err); toast(t("exportFail")); }
+      finally { exportBtn.disabled = false; exportBtn.innerHTML = original; }
+    }, 40);
+  }
+
+  function buildPdf() {
+    var jsPDF = window.jspdf.jsPDF;
+    var pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    var pw = pdf.internal.pageSize.getWidth();
+    var ph = pdf.internal.pageSize.getHeight();
+    var margin = 10;
+    var availW = pw - margin * 2;
+    var availH = ph - margin * 2;
+
+    pages.forEach(function (page, idx) {
+      if (idx > 0) pdf.addPage();
+      var canvas = page._canvas || renderPageCanvas(page);
+      var iw = canvas.width, ih = canvas.height;
+      var scale = Math.min(availW / iw, availH / ih);
+      var w = iw * scale, h = ih * scale;
+      var x = (pw - w) / 2, y = (ph - h) / 2;
+      var quality = currentFilter === "bw" ? 0.92 : 0.82;
+      pdf.addImage(canvas.toDataURL("image/jpeg", quality), "JPEG", x, y, w, h, undefined, "FAST");
+    });
+
+    var name = (document.getElementById("filename").value || t("defaultName")).trim() || t("defaultName");
+    name = name.replace(/[\\/:*?"<>|]+/g, "_");
+    if (!/\.pdf$/i.test(name)) name += ".pdf";
+    pdf.save(name);
+  }
+
+  // initial paint (welcome covers it until a language is chosen)
+  applyLang();
+})();
+</script>
+</body>
+</html>
